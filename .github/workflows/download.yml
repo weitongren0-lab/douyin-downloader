@@ -1,0 +1,41 @@
+name: Douyin Anonymous Downloader
+
+on:
+  workflow_dispatch:
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Install yt-dlp
+        run: |
+          sudo apt update
+          sudo apt install -y ffmpeg
+          pip install -U yt-dlp
+
+      - name: Download Douyin profile videos (anonymous)
+        run: |
+          yt-dlp \
+          --no-check-certificate \
+          --ignore-errors \
+          --no-warnings \
+          --extractor-args "douyin:tab=video" \
+          --retries 10 \
+          --fragment-retries 10 \
+          --concurrent-fragments 5 \
+          --sleep-interval 1 \
+          --max-sleep-interval 3 \
+          --continue \
+          --no-overwrites \
+          -o "%(uploader)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
+          "https://www.douyin.com/user/MS4wLjABAAAA1__BtRoq5zyQorzwAlok3PppNiY91epHDw7TSuqtOtES79pfVefdMo4TAfukKXM1"
+
+      - name: Upload videos
+        uses: actions/upload-artifact@v4
+        with:
+          name: douyin-videos
+          path: .
