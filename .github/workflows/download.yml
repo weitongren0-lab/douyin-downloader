@@ -1,4 +1,4 @@
-name: Douyin Anonymous Downloader
+name: Douyin Link Collector
 
 on:
   workflow_dispatch:
@@ -8,34 +8,66 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install yt-dlp
+      - name: Install dependencies
         run: |
           sudo apt update
           sudo apt install -y ffmpeg
-          pip install -U yt-dlp
+          pip install -U yt-dlp requests beautifulsoup4
 
-      - name: Download Douyin profile videos (anonymous)
+      - name: Collect links
         run: |
-          yt-dlp \
-          --no-check-certificate \
-          --ignore-errors \
-          --no-warnings \
-          --extractor-args "douyin:tab=video" \
-          --retries 10 \
-          --fragment-retries 10 \
-          --concurrent-fragments 5 \
-          --sleep-interval 1 \
-          --max-sleep-interval 3 \
-          --continue \
-          --no-overwrites \
-          -o "%(uploader)s/%(upload_date)s_%(id)s_%(title)s.%(ext)s" \
-          "https://www.douyin.com/user/MS4wLjABAAAA1__BtRoq5zyQorzwAlok3PppNiY91epHDw7TSuqtOtES79pfVefdMo4TAfukKXM1"
+          python << 'EOF'
+          import re
+          import requests
 
-      - name: Upload videos
+          url = "https://www.douyin.com/user/MS4wLjABAAAA1__BtRoq5zyQorzwAlok3PppNiY91epHDw7TSuqtOtES79pfVefdMo4TAfukKXM1"
+
+          headers = {
+              "User-Agent": "Mozilla/5.0"
+          }
+
+          r = requests.get(url, headers=headers, timeout=30)
+
+          html = r.text
+
+          links = set()
+
+          patterns = [
+              r'https://www\.douyin\.com/video/\d+',
+              r'https:\\/\\/www\.douyin\.com\\/video\\/\d+'
+          ]
+
+          for p in patterns:
+              for m in re.findall(p, html):
+                  links.add(m.replace("\\/", "/"))
+
+          with open("links.txt", "w", encoding="utf-8") as f:
+              for link in sorted(links):
+                  f.write(link + "\n")
+
+          print("Collected:", len(links), "links")
+          EOF
+
+      - name: Show collected links
+        run: |
+          cat links.txt || true
+
+      - name: Download videos
+        run: |
+          if [ -s links.txt ]; then
+            yt-dlp \
+              --ignore-errors \
+              --continue \
+              --no-overwrites \
+              -a links.txt
+          else
+            echo "No links found"
+          fi
+
+      - name: Upload result
         uses: actions/upload-artifact@v4
         with:
-          name: douyin-videos
+          name: douyin-downloads
           path: .
